@@ -117,3 +117,11 @@ npm run deploy:cloudbase -- 你的环境ID
 命令构建 `dist-cloudbase/` 并上传到该环境站点根目录，会覆盖站点同名文件。部署前确认该环境用于茜茜扫描。单独构建：`npm run build:cloudbase`。构建包含本地 OpenCV 和 PWA 资源，无需访问海外脚本 CDN；生产环境使用 HTTPS 以启用摄像头。
 
 GitHub 与腾讯云是不同域名，各自保存本地文档。旧站文档不会自动迁移，请先在旧站导出需要保留的 PDF。
+
+### EdgeOne Makers：GitHub 自动部署
+
+在 Makers 中选择“导入 Git 仓库”，连接 `Bigjiang001/scango` 的 `main` 分支。框架选择 Vite，项目根目录为仓库根目录。仓库的 `edgeone.json` 固定安装命令 `npm ci`、构建命令 `npm run build`、输出目录 `dist`。普通构建使用站点根路径；不要使用 GitHub Pages 专用的 `--mode github`。
+
+启用生产分支自动部署后，后续推送到 `main` 会触发 Makers 构建。GitHub Pages 原有工作流继续独立运行。
+
+部署状态以 Makers 控制台为准；仅提交配置文件不代表已连接仓库或已上线。根据 [官方域名说明](https://pages.edgeone.ai/document/domain-overview)，大陆访问平台默认域名需要有效期为 3 小时的预览链接，长期固定入口建议使用自定义域名。选择含大陆节点的加速区域时，自定义域名需备案。免费计划和配额以平台当前政策为准。
