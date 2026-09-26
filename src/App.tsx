@@ -31,11 +31,17 @@ import {
   type ScanDocument,
   type ScanPage,
   type Corners,
+  type DetectionResult,
   type Filter,
 } from "./types/scan";
+import type { PageFormat } from "./utils/pdfLayout";
 import { newId } from "./utils/id";
 type View = "home" | "camera" | "crop" | "enhance" | "editor" | "export";
 type Draft = {
+  cropFormat?: PageFormat;
+  guide?: Corners;
+  alternatives?: Corners[];
+  candidateIndex?: number;
   original: Blob;
   preview: Blob;
   corners: Corners;
@@ -122,30 +128,45 @@ export default function App() {
     setReplaceId(undefined);
     setView(doc?.pages.length ? "editor" : "home");
   }
-  async function capture(blob: Blob) {
+  async function capture(blob: Blob, guide?: Corners) {
     await task("正在寻找文档边缘…", async () => {
       if (blob.size > 80 * 1024 * 1024)
         throw new Error("图片超过 80 MB，请选择较小的照片。");
       const preview = await resize(blob, 1800, 0.88);
-      let result: { corners: Corners; detected: boolean; dark: boolean };
+      let result: DetectionResult;
       try {
-        result = await detectDocument(preview.blob);
+        result = await detectDocument(preview.blob, guide);
       } catch (e) {
         setMessage(
           "自动检测暂时不可用，请手动调整四角。" + (e as Error).message,
         );
         result = {
-          corners: [
-            { x: 0.04, y: 0.04 },
-            { x: 0.96, y: 0.04 },
-            { x: 0.96, y: 0.96 },
-            { x: 0.04, y: 0.96 },
+          corners: guide || [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
           ],
+          alternatives: [],
+          confidence: 0,
           detected: false,
           dark: false,
         };
       }
       setDraft({
+        guide,
+        candidateIndex: 0,
+        cropFormat:
+          Math.hypot(
+            (result.corners[1].x - result.corners[0].x) * preview.width,
+            (result.corners[1].y - result.corners[0].y) * preview.height,
+          ) >
+          Math.hypot(
+            (result.corners[3].x - result.corners[0].x) * preview.width,
+            (result.corners[3].y - result.corners[0].y) * preview.height,
+          )
+            ? "a4-landscape"
+            : "a4",
         original: blob,
         preview: preview.blob,
         ...result,
@@ -157,10 +178,21 @@ export default function App() {
       setView("crop");
     });
   }
+  async function redetect() {
+    if (!draft) return;
+    await task("正在重新识别整张纸…", async () => {
+      const result = await detectDocument(draft.preview, draft.guide);
+      setDraft({ ...draft, ...result, candidateIndex: 0 });
+    });
+  }
   async function warp() {
     if (!draft) return;
     await task("正在拉正文档…", async () => {
-      const corrected = await correctPerspective(draft.original, draft.corners);
+      const corrected = await correctPerspective(
+        draft.original,
+        draft.corners,
+        draft.cropFormat,
+      );
       const enhanced = await applyFilter(corrected.blob, draft.filter);
       setDraft({
         ...draft,
@@ -190,6 +222,7 @@ export default function App() {
         thumbnail: thumbnail.blob,
         corners: draft.corners,
         rotation: 0,
+        cropFormat: draft.cropFormat,
         filter: draft.filter,
         width: draft.width,
         height: draft.height,
@@ -208,6 +241,7 @@ export default function App() {
     await task("正在打开原图…", async () => {
       const preview = await resize(page.originalImage, 1800);
       setDraft({
+        cropFormat: page.cropFormat || "original",
         original: page.originalImage,
         preview: preview.blob,
         corners: page.corners,
@@ -328,7 +362,9 @@ export default function App() {
               <span className="step-label">01 裁剪 → 02 增强 → 03 保存</span>
             </div>
             {!draft.detected && (
-              <div className="error">未检测到文档边缘，请手动调整。</div>
+              <div className="error">
+                无法可靠确认纸张边缘，已保留取景范围。请检查四角，避免裁掉文字。
+              </div>
             )}
             {draft.dark && (
               <div className="error">当前环境较暗，建议增加光线。</div>
@@ -338,6 +374,66 @@ export default function App() {
               corners={draft.corners}
               onChange={(corners) => setDraft({ ...draft, corners })}
             />
+            <div className="crop-format">
+              <label className="field" htmlFor="crop-format">
+                纸张校正比例
+              </label>
+              <select
+                id="crop-format"
+                className="input"
+                value={draft.cropFormat || "original"}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    cropFormat: e.target.value as PageFormat,
+                  })
+                }
+              >
+                <option value="a4">A4 竖向文件</option>
+                <option value="a4-landscape">A4 横向文件</option>
+                <option value="original">自由比例（票据 / 卡片等）</option>
+              </select>
+              <p className="hint">
+                普通打印纸按 A4 比例拉正；其他纸张请选择自由比例。
+              </p>
+            </div>
+            <div className="detection-tools">
+              <button className="secondary" onClick={redetect}>
+                <RefreshCw size={16} /> 重新识别
+              </button>
+              {(draft.alternatives?.length || 0) > 1 && (
+                <button
+                  className="secondary"
+                  onClick={() => {
+                    const index =
+                      ((draft.candidateIndex || 0) + 1) %
+                      draft.alternatives!.length;
+                    setDraft({
+                      ...draft,
+                      corners: draft.alternatives![index],
+                      candidateIndex: index,
+                      detected: true,
+                    });
+                  }}
+                >
+                  换一个识别框
+                </button>
+              )}
+              {draft.guide && (
+                <button
+                  className="secondary"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      corners: draft.guide!,
+                      detected: false,
+                    })
+                  }
+                >
+                  恢复拍摄框
+                </button>
+              )}
+            </div>
             <div className="crop-help">
               <p className="hint">确认后将自动校正透视，还原正面文档。</p>
               <button

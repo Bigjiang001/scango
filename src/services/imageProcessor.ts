@@ -1,4 +1,5 @@
-import type { Corners, Filter } from "../types/scan";
+import type { PageFormat } from "../utils/pdfLayout";
+import type { Corners, Filter, DetectionResult } from "../types/scan";
 import { decode, canvasBlob } from "../utils/images";
 let worker: Worker | undefined;
 let sequence = 0;
@@ -64,13 +65,10 @@ async function run<T>(
     ]);
   });
 }
-export function detectDocument(blob: Blob) {
-  return run<{ corners: Corners; detected: boolean; dark: boolean }>(
-    "detect",
-    blob,
-    900,
-  );
+export function detectDocument(blob: Blob, guide?: Corners) {
+  return run<DetectionResult>("detect", blob, 1100, { guide });
 }
+
 async function output(operation: string, blob: Blob, extra: object) {
   const result = await run<{
     data: Uint8ClampedArray<ArrayBuffer>;
@@ -87,8 +85,12 @@ async function output(operation: string, blob: Blob, extra: object) {
   );
   return { blob: await canvasBlob(c, 0.94), width: c.width, height: c.height };
 }
-export function correctPerspective(blob: Blob, corners: Corners) {
-  return output("warp", blob, { corners });
+export function correctPerspective(
+  blob: Blob,
+  corners: Corners,
+  paperFormat: PageFormat = "original",
+) {
+  return output("warp", blob, { corners, paperFormat });
 }
 export function applyFilter(blob: Blob, filter: Filter) {
   return output("filter", blob, { filter });

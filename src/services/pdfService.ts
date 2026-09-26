@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import type { ScanDocument } from "../types/scan";
+import { pageLayout } from "../utils/pdfLayout";
 import { resize } from "../utils/images";
 export async function generatePdf(
   doc: ScanDocument,
@@ -16,24 +17,13 @@ export async function generatePdf(
       quality === "high" ? 0.9 : 0.76,
     );
     const img = await pdf.embedJpg(await source.blob.arrayBuffer());
-    const ratio = img.width / img.height;
-    const a4 = Math.abs(Math.min(ratio, 1 / ratio) - 1 / Math.sqrt(2)) < 0.045;
-    const size: [number, number] = a4
-      ? ratio > 1
-        ? [841.89, 595.28]
-        : [595.28, 841.89]
-      : ratio > 1
-        ? [841.89, 841.89 / ratio]
-        : [841.89 * ratio, 841.89];
-    const page = pdf.addPage(size);
-    const scale = Math.min(size[0] / img.width, size[1] / img.height);
-    const w = img.width * scale,
-      h = img.height * scale;
+    const layout = pageLayout(img.width, img.height, doc.exportOptions);
+    const page = pdf.addPage(layout.size);
     page.drawImage(img, {
-      x: (size[0] - w) / 2,
-      y: (size[1] - h) / 2,
-      width: w,
-      height: h,
+      x: layout.x,
+      y: layout.y,
+      width: layout.width,
+      height: layout.height,
     });
     progress(Math.round(((i + 1) / doc.pages.length) * 100));
   }

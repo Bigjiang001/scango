@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, X, Upload, RefreshCw } from "lucide-react";
+import type { Corners } from "../types/scan";
+import { cameraGuide } from "../utils/cameraGuide";
 import { canvasBlob } from "../utils/images";
 export function CameraScanner({
   onCapture,
   onCancel,
   onImport,
 }: {
-  onCapture: (blob: Blob) => Promise<void>;
+  onCapture: (blob: Blob, guide?: Corners) => Promise<void>;
   onCancel: () => void;
   onImport: () => void;
 }) {
@@ -16,6 +18,26 @@ export function CameraScanner({
   const [error, setError] = useState("");
   const [shooting, setShooting] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [landscape, setLandscape] = useState(false);
+  const [guide, setGuide] = useState<ReturnType<typeof cameraGuide>>();
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !ready) return;
+    const update = () =>
+      setGuide(
+        cameraGuide(
+          v.videoWidth,
+          v.videoHeight,
+          v.clientWidth,
+          v.clientHeight,
+          landscape,
+        ),
+      );
+    const observer = new ResizeObserver(update);
+    observer.observe(v);
+    update();
+    return () => observer.disconnect();
+  }, [ready, landscape]);
   useEffect(() => {
     let cancelled = false;
     let active: MediaStream | null = null;
@@ -74,8 +96,15 @@ export function CameraScanner({
       c.width = v.videoWidth;
       c.height = v.videoHeight;
       c.getContext("2d")!.drawImage(v, 0, 0);
+      const capturedGuide = cameraGuide(
+        c.width,
+        c.height,
+        v.clientWidth,
+        v.clientHeight,
+        landscape,
+      ).corners;
       const blob = await canvasBlob(c, 0.95);
-      await onCapture(blob);
+      await onCapture(blob, capturedGuide);
       setShooting(false);
     } catch {
       setError("拍摄失败，请重试。");
@@ -93,7 +122,12 @@ export function CameraScanner({
           <X />
         </button>
         <span>扫描文件</span>
-        <span className="camera-local">本地处理</span>
+        <button
+          className="camera-local"
+          onClick={() => setLandscape((v) => !v)}
+        >
+          {landscape ? "A4 横向 ⇄" : "A4 竖向 ⇄"}
+        </button>
       </div>
       <div className="camera-view">
         <video
@@ -105,14 +139,28 @@ export function CameraScanner({
         />
         {!error && (
           <>
-            <div className="camera-guide">
+            <div
+              className="camera-guide"
+              style={
+                guide
+                  ? {
+                      left: guide.left,
+                      top: guide.top,
+                      width: guide.width,
+                      height: guide.height,
+                      maxWidth: "none",
+                      maxHeight: "none",
+                    }
+                  : undefined
+              }
+            >
               <i />
               <i />
               <i />
               <i />
             </div>
             <div className="camera-tip">
-              {ready ? "将纸张放入取景框 · 保持平稳" : "正在启动摄像头…"}
+              {ready ? "纸张四边对齐取景框 · 避开杂物" : "正在启动摄像头…"}
             </div>
           </>
         )}

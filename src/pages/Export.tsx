@@ -3,11 +3,16 @@ import {
   ArrowLeft,
   Download,
   Share2,
-  FileCheck2,
   FileText,
   Check,
   Loader2,
 } from "lucide-react";
+import { BlobImage } from "../components/BlobImage";
+import {
+  defaultExportOptions,
+  pageLayout,
+  type ExportOptions,
+} from "../utils/pdfLayout";
 import type { ScanDocument } from "../types/scan";
 import { generatePdf, downloadPdf } from "../services/pdfService";
 import { fileName } from "../utils/images";
@@ -26,19 +31,38 @@ export function Export({
   const [quality, setQuality] = useState<"standard" | "high">(
     doc.pdfInfo?.quality || "standard",
   );
-  const [pdf, setPdf] = useState<Blob | undefined>(doc.pdfInfo?.blob);
+  const [options, setOptions] = useState<ExportOptions>(
+    doc.exportOptions || defaultExportOptions,
+  );
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [pdf, setPdf] = useState<Blob | undefined>(
+    doc.pdfInfo?.layoutVersion === 2 ? doc.pdfInfo.blob : undefined,
+  );
+  const previewPage = doc.pages[Math.min(previewIndex, doc.pages.length - 1)];
+  const layout = previewPage
+    ? pageLayout(previewPage.width, previewPage.height, options)
+    : undefined;
+  function changeOptions(next: ExportOptions) {
+    setOptions(next);
+    setPdf(undefined);
+  }
+
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   async function generate() {
     setBusy(true);
     setProgress(0);
     try {
-      const updated = { ...doc, name: fileName(name).replace(/\.pdf$/i, "") };
+      const updated = {
+        ...doc,
+        exportOptions: options,
+        name: fileName(name).replace(/\.pdf$/i, ""),
+      };
       const blob = await generatePdf(updated, quality, setProgress);
       await onSaved({
         ...updated,
         updatedAt: Date.now(),
-        pdfInfo: { blob, quality, generatedAt: Date.now() },
+        pdfInfo: { blob, quality, generatedAt: Date.now(), layoutVersion: 2 },
       });
       setPdf(blob);
     } catch (e) {
@@ -80,9 +104,45 @@ export function Export({
       </div>
       <div className="export-layout">
         <div className="export-summary">
-          <div className={`pdf-symbol ${pdf ? "complete" : ""}`}>
-            {pdf ? <FileCheck2 size={55} /> : <FileText size={55} />}
-          </div>
+          {previewPage && layout && (
+            <div
+              className="paper-preview"
+              style={{ aspectRatio: `${layout.size[0]} / ${layout.size[1]}` }}
+            >
+              <BlobImage
+                blob={previewPage.thumbnail}
+                alt={`第 ${previewIndex + 1} 页排版预览`}
+                style={{
+                  position: "absolute",
+                  left: `${(layout.x / layout.size[0]) * 100}%`,
+                  top: `${(layout.y / layout.size[1]) * 100}%`,
+                  width: `${(layout.width / layout.size[0]) * 100}%`,
+                  height: `${(layout.height / layout.size[1]) * 100}%`,
+                }}
+              />
+            </div>
+          )}
+          {doc.pages.length > 1 && (
+            <div className="preview-pager">
+              <button
+                className="secondary"
+                disabled={previewIndex === 0}
+                onClick={() => setPreviewIndex((i) => i - 1)}
+              >
+                上一页
+              </button>
+              <span>
+                {previewIndex + 1} / {doc.pages.length}
+              </span>
+              <button
+                className="secondary"
+                disabled={previewIndex === doc.pages.length - 1}
+                onClick={() => setPreviewIndex((i) => i + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          )}
           <h2>{pdf ? "清晰归档，随时分享" : "把每一页，整理成一份"}</h2>
           <p>
             {pdf
@@ -117,6 +177,64 @@ export function Export({
             />
             <span>.pdf</span>
           </div>
+          <fieldset disabled={busy}>
+            <legend>整份文档的纸张尺寸</legend>
+            {(
+              [
+                {
+                  id: "a4",
+                  title: "统一 A4 竖向",
+                  note: "210 × 297 mm · 普通打印文件",
+                },
+                {
+                  id: "a4-landscape",
+                  title: "统一 A4 横向",
+                  note: "297 × 210 mm · 横版表格",
+                },
+                {
+                  id: "original",
+                  title: "按各页裁剪比例",
+                  note: "票据、卡片等特殊尺寸",
+                },
+              ] as const
+            ).map((item) => (
+              <label
+                key={item.id}
+                className={`quality-choice ${options.pageFormat === item.id ? "selected" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="page-format"
+                  checked={options.pageFormat === item.id}
+                  onChange={() =>
+                    changeOptions({ ...options, pageFormat: item.id })
+                  }
+                />
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.note}</p>
+                </div>
+              </label>
+            ))}
+            <label className="field" htmlFor="page-margin">
+              统一页边距
+            </label>
+            <select
+              id="page-margin"
+              className="input"
+              value={options.marginMm}
+              onChange={(e) =>
+                changeOptions({
+                  ...options,
+                  marginMm: Number(e.target.value) as 0 | 5 | 10,
+                })
+              }
+            >
+              <option value="0">无边距</option>
+              <option value="5">5 mm（推荐）</option>
+              <option value="10">10 mm（装订留白）</option>
+            </select>
+          </fieldset>
           <fieldset disabled={busy}>
             <legend>导出清晰度</legend>
             <label
@@ -156,8 +274,9 @@ export function Export({
             </label>
           </fieldset>
           <p className="hint">
-            接近 A4 的文档自动适配 A4
-            页面，其他文档按实际比例导出。图片不会拉伸。
+            {options.pageFormat === "original"
+              ? "按各页裁剪后的宽高比导出，页面尺寸可能不同。"
+              : "所有页面使用相同的 A4 尺寸与方向。图片等比居中，空白补白，不拉伸、不裁掉文字。"}
           </p>
         </div>
       </div>

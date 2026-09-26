@@ -25,6 +25,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run check:images
+      - run: npm run check:layout
       - run: npm run build -- --mode github
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

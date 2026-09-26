@@ -138,7 +138,8 @@ export function Home({
       </section>
       <footer>
         <span>
-          茜茜扫描 <span className="footer-separator">/</span> 把清晰，留在身边。
+          茜茜扫描 <span className="footer-separator">/</span>{" "}
+          把清晰，留在身边。 · v1.1
         </span>
         <button className="text-button" onClick={onHelp}>
           <Smartphone size={16} /> 添加到主屏幕
