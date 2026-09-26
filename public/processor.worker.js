@@ -328,9 +328,15 @@ self.onmessage = async ({ data }) => {
       const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
       let w = Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2])),
         h = Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2]));
-      if (data.paperFormat === "a4" || data.paperFormat === "a4-landscape") {
+      if (
+        (Number.isFinite(data.paperRatio) && data.paperRatio > 0) ||
+        data.paperFormat === "a4" ||
+        data.paperFormat === "a4-landscape"
+      ) {
         const longest = Math.max(w, h);
-        const ratio = data.paperFormat === "a4" ? 1 / Math.SQRT2 : Math.SQRT2;
+        const ratio =
+          data.paperRatio ||
+          (data.paperFormat === "a4" ? 1 / Math.SQRT2 : Math.SQRT2);
         w = ratio > 1 ? longest : longest * ratio;
         h = ratio > 1 ? longest / ratio : longest;
       }

@@ -34,7 +34,7 @@ import {
   type DetectionResult,
   type Filter,
 } from "./types/scan";
-import type { PageFormat } from "./utils/pdfLayout";
+import { paperSizes, type PageFormat } from "./utils/pdfLayout";
 import { newId } from "./utils/id";
 type View = "home" | "camera" | "crop" | "enhance" | "editor" | "export";
 type Draft = {
@@ -156,17 +156,7 @@ export default function App() {
       setDraft({
         guide,
         candidateIndex: 0,
-        cropFormat:
-          Math.hypot(
-            (result.corners[1].x - result.corners[0].x) * preview.width,
-            (result.corners[1].y - result.corners[0].y) * preview.height,
-          ) >
-          Math.hypot(
-            (result.corners[3].x - result.corners[0].x) * preview.width,
-            (result.corners[3].y - result.corners[0].y) * preview.height,
-          )
-            ? "a4-landscape"
-            : "a4",
+        cropFormat: "original",
         original: blob,
         preview: preview.blob,
         ...result,
@@ -389,12 +379,19 @@ export default function App() {
                   })
                 }
               >
-                <option value="a4">A4 竖向文件</option>
-                <option value="a4-landscape">A4 横向文件</option>
-                <option value="original">自由比例（票据 / 卡片等）</option>
+                <option value="original">自由比例（按实际裁剪）</option>
+                {paperSizes.map((p) => (
+                  <optgroup
+                    key={p.id}
+                    label={`${p.label} · ${p.width} × ${p.height} mm`}
+                  >
+                    <option value={p.id}>{p.label} 竖向</option>
+                    <option value={`${p.id}-landscape`}>{p.label} 横向</option>
+                  </optgroup>
+                ))}
               </select>
               <p className="hint">
-                普通打印纸按 A4 比例拉正；其他纸张请选择自由比例。
+                选择实际纸张类型进行校正；不确定尺寸时保留自由比例。
               </p>
             </div>
             <div className="detection-tools">

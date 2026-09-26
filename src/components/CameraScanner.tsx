@@ -126,7 +126,7 @@ export function CameraScanner({
           className="camera-local"
           onClick={() => setLandscape((v) => !v)}
         >
-          {landscape ? "A4 横向 ⇄" : "A4 竖向 ⇄"}
+          {landscape ? "横向取景 ⇄" : "竖向取景 ⇄"}
         </button>
       </div>
       <div className="camera-view">

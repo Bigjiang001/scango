@@ -15,7 +15,8 @@ async function load(path) {
     "data:text/javascript;base64," + Buffer.from(js).toString("base64")
   );
 }
-const { pageLayout } = await load("../src/utils/pdfLayout.ts");
+const { pageLayout, paperSizes, paperDimensions, defaultExportOptions } =
+  await load("../src/utils/pdfLayout.ts");
 for (const format of ["a4", "a4-landscape", "original"])
   for (const margin of [0, 5, 10])
     for (const [w, h] of [
@@ -78,3 +79,47 @@ for (const [vw, vh] of [
       );
     }
 console.log("PASS: 18 portrait/landscape/letterbox camera guide mappings");
+
+assert.equal(defaultExportOptions.pageFormat, "original");
+for (const paper of paperSizes)
+  for (const landscape of [false, true]) {
+    const options = {
+      pageFormat: paper.id + (landscape ? "-landscape" : ""),
+      marginMm: 5,
+    };
+    const mm = landscape
+      ? [paper.height, paper.width]
+      : [paper.width, paper.height];
+    assert.deepEqual(paperDimensions(options), mm);
+    for (const [w, h] of [
+      [700, 1100],
+      [1100, 700],
+    ]) {
+      const layout = pageLayout(w, h, options);
+      assert.deepEqual(
+        layout.size,
+        mm.map((v) => Math.round(((v * 72) / 25.4) * 100) / 100),
+      );
+      assert.ok(Math.abs(layout.width / layout.height - w / h) < 1e-8);
+    }
+  }
+assert.deepEqual(
+  pageLayout(800, 1200, {
+    pageFormat: "custom",
+    marginMm: 0,
+    customWidthMm: 100,
+    customHeightMm: 180,
+  }).size,
+  [283.46, 510.24],
+);
+for (const n of [0, 19, 2001, NaN, Infinity])
+  assert.throws(() =>
+    paperDimensions({
+      pageFormat: "custom",
+      customWidthMm: n,
+      customHeightMm: 180,
+    }),
+  );
+console.log(
+  "PASS: 12 standard paper orientations, custom dimensions, invalid sizes, and free-size default",
+);

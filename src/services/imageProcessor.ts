@@ -1,4 +1,4 @@
-import type { PageFormat } from "../utils/pdfLayout";
+import { paperDimensions, type PageFormat } from "../utils/pdfLayout";
 import type { Corners, Filter, DetectionResult } from "../types/scan";
 import { decode, canvasBlob } from "../utils/images";
 let worker: Worker | undefined;
@@ -90,7 +90,11 @@ export function correctPerspective(
   corners: Corners,
   paperFormat: PageFormat = "original",
 ) {
-  return output("warp", blob, { corners, paperFormat });
+  const mm = paperDimensions({ pageFormat: paperFormat, marginMm: 0 });
+  return output("warp", blob, {
+    corners,
+    paperRatio: mm ? mm[0] / mm[1] : undefined,
+  });
 }
 export function applyFilter(blob: Blob, filter: Filter) {
   return output("filter", blob, { filter });

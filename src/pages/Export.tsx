@@ -10,6 +10,8 @@ import {
 import { BlobImage } from "../components/BlobImage";
 import {
   defaultExportOptions,
+  paperSizes,
+  type PageFormat,
   pageLayout,
   type ExportOptions,
 } from "../utils/pdfLayout";
@@ -39,9 +41,14 @@ export function Export({
     doc.pdfInfo?.layoutVersion === 2 ? doc.pdfInfo.blob : undefined,
   );
   const previewPage = doc.pages[Math.min(previewIndex, doc.pages.length - 1)];
-  const layout = previewPage
-    ? pageLayout(previewPage.width, previewPage.height, options)
-    : undefined;
+  let layout: ReturnType<typeof pageLayout> | undefined;
+  let sizeError = "";
+  try {
+    if (previewPage)
+      layout = pageLayout(previewPage.width, previewPage.height, options);
+  } catch (e) {
+    sizeError = (e as Error).message;
+  }
   function changeOptions(next: ExportOptions) {
     setOptions(next);
     setPdf(undefined);
@@ -50,6 +57,7 @@ export function Export({
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
   async function generate() {
+    if (sizeError) return;
     setBusy(true);
     setProgress(0);
     try {
@@ -179,43 +187,84 @@ export function Export({
           </div>
           <fieldset disabled={busy}>
             <legend>整份文档的纸张尺寸</legend>
-            {(
-              [
-                {
-                  id: "a4",
-                  title: "统一 A4 竖向",
-                  note: "210 × 297 mm · 普通打印文件",
-                },
-                {
-                  id: "a4-landscape",
-                  title: "统一 A4 横向",
-                  note: "297 × 210 mm · 横版表格",
-                },
-                {
-                  id: "original",
-                  title: "按各页裁剪比例",
-                  note: "票据、卡片等特殊尺寸",
-                },
-              ] as const
-            ).map((item) => (
-              <label
-                key={item.id}
-                className={`quality-choice ${options.pageFormat === item.id ? "selected" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="page-format"
-                  checked={options.pageFormat === item.id}
-                  onChange={() =>
-                    changeOptions({ ...options, pageFormat: item.id })
-                  }
-                />
-                <div>
-                  <strong>{item.title}</strong>
-                  <p>{item.note}</p>
-                </div>
-              </label>
-            ))}
+            <label className="field" htmlFor="paper-format">
+              纸张尺寸
+            </label>
+            <select
+              id="paper-format"
+              className="input"
+              value={options.pageFormat}
+              onChange={(e) =>
+                changeOptions({
+                  ...options,
+                  pageFormat: e.target.value as PageFormat,
+                })
+              }
+            >
+              <option value="original">自由尺寸（按各页裁剪比例）</option>
+              {paperSizes.map((p) => (
+                <optgroup
+                  key={p.id}
+                  label={`${p.label} · ${p.width} × ${p.height} mm`}
+                >
+                  <option value={p.id}>
+                    {p.label} 竖向 · {p.width} × {p.height} mm
+                  </option>
+                  <option value={`${p.id}-landscape`}>
+                    {p.label} 横向 · {p.height} × {p.width} mm
+                  </option>
+                </optgroup>
+              ))}
+              <option value="custom">自定义尺寸（输入宽高）</option>
+            </select>
+            {options.pageFormat === "custom" && (
+              <div className="custom-paper-fields">
+                <label>
+                  宽度（mm）
+                  <input
+                    className="input"
+                    type="number"
+                    min="20"
+                    max="2000"
+                    step="0.1"
+                    inputMode="decimal"
+                    value={options.customWidthMm ?? 210}
+                    onChange={(e) =>
+                      changeOptions({
+                        ...options,
+                        customWidthMm: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  高度（mm）
+                  <input
+                    className="input"
+                    type="number"
+                    min="20"
+                    max="2000"
+                    step="0.1"
+                    inputMode="decimal"
+                    value={options.customHeightMm ?? 297}
+                    onChange={(e) =>
+                      changeOptions({
+                        ...options,
+                        customHeightMm: Number(e.target.value),
+                      })
+                    }
+                  />
+                </label>
+              </div>
+            )}
+            {sizeError && (
+              <p className="error" role="alert">
+                {sizeError}
+              </p>
+            )}
+            <p className="hint paper-option-hint">
+              选择固定纸张或自定义宽高时，整份文档使用相同页面尺寸；自由尺寸保留每页的裁剪比例。
+            </p>
             <label className="field" htmlFor="page-margin">
               统一页边距
             </label>
@@ -276,7 +325,7 @@ export function Export({
           <p className="hint">
             {options.pageFormat === "original"
               ? "按各页裁剪后的宽高比导出，页面尺寸可能不同。"
-              : "所有页面使用相同的 A4 尺寸与方向。图片等比居中，空白补白，不拉伸、不裁掉文字。"}
+              : "所有页面使用所选的纸张尺寸与方向。图片等比居中，空白补白，不拉伸、不裁掉文字。"}
           </p>
         </div>
       </div>
@@ -296,7 +345,7 @@ export function Export({
         ) : (
           <button
             className="primary"
-            disabled={busy || !doc.pages.length}
+            disabled={busy || !doc.pages.length || !!sizeError}
             onClick={generate}
           >
             {busy ? (

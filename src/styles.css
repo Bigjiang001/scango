@@ -1528,3 +1528,17 @@ body {
   padding: 10px;
   font-size: 14px;
 }
+.custom-paper-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+.custom-paper-fields input {
+  margin-top: 8px;
+  min-width: 0;
+}
+.paper-option-hint {
+  margin: 12px 0 18px;
+}
