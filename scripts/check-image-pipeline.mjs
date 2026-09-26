@@ -220,3 +220,30 @@ assert.ok(Math.abs(wideWarp.width / wideWarp.height - Math.SQRT2) < 0.003);
 console.log(
   "PASS: A4 portrait/landscape perspective targets preserve all four source corners",
 );
+
+// Pale ink on shaded paper must survive automatic background correction.
+const paleInk = new cv.Mat(
+  320,
+  420,
+  cv.CV_8UC4,
+  new cv.Scalar(150, 150, 150, 255),
+);
+for (let x = 70; x < 350; x += 14)
+  cv.line(
+    paleInk,
+    new cv.Point(x, 90),
+    new cv.Point(x, 230),
+    new cv.Scalar(130, 130, 130, 255),
+    1,
+  );
+const paleInkOutput = await run("filter", rgba(paleInk), { filter: "auto" });
+const intensity = (x, y) => paleInkOutput.data[(y * 420 + x) * 4];
+assert.ok(
+  intensity(77, 160) - intensity(70, 160) >= 20,
+  "Automatic enhancement must retain fine, pale strokes on shaded paper",
+);
+assert.ok(intensity(77, 160) >= 210, "Background should be brightened");
+console.log(
+  "PASS: automatic enhancement retains one-pixel pale strokes on shaded paper",
+);
+paleInk.delete();

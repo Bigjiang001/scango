@@ -3,3 +3,6 @@ dist
 .DS_Store
 *.tsbuildinfo
 .test-output
+
+dist-cloudbase
+.cloudbase

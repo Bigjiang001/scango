@@ -37,11 +37,16 @@ function getWorker() {
 }
 async function pixels(blob: Blob, max: number) {
   const img = await decode(blob);
-  const scale = Math.min(1, max / Math.max(img.width, img.height));
+  const scale = Math.min(
+    1,
+    max / Math.max(img.width, img.height),
+    Math.sqrt(8_000_000 / (img.width * img.height)),
+  );
   const c = document.createElement("canvas");
   c.width = Math.max(2, Math.round(img.width * scale));
   c.height = Math.max(2, Math.round(img.height * scale));
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, c.width, c.height);
   return ctx.getImageData(0, 0, c.width, c.height);
 }
@@ -74,7 +79,7 @@ async function output(operation: string, blob: Blob, extra: object) {
     data: Uint8ClampedArray<ArrayBuffer>;
     width: number;
     height: number;
-  }>(operation, blob, 2600, extra);
+  }>(operation, blob, 3200, extra);
   const c = document.createElement("canvas");
   c.width = result.width;
   c.height = result.height;
@@ -83,7 +88,15 @@ async function output(operation: string, blob: Blob, extra: object) {
     0,
     0,
   );
-  return { blob: await canvasBlob(c, 0.94), width: c.width, height: c.height };
+  return {
+    blob: await canvasBlob(
+      c,
+      0.98,
+      operation === "warp" ? "image/png" : "image/jpeg",
+    ),
+    width: c.width,
+    height: c.height,
+  };
 }
 export function correctPerspective(
   blob: Blob,
@@ -96,6 +109,10 @@ export function correctPerspective(
     paperRatio: mm ? mm[0] / mm[1] : undefined,
   });
 }
-export function applyFilter(blob: Blob, filter: Filter) {
+export async function applyFilter(blob: Blob, filter: Filter) {
+  if (filter === "original") {
+    const img = await decode(blob);
+    return { blob, width: img.width, height: img.height };
+  }
   return output("filter", blob, { filter });
 }

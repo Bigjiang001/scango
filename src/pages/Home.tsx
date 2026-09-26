@@ -139,7 +139,7 @@ export function Home({
       <footer>
         <span>
           茜茜扫描 <span className="footer-separator">/</span>{" "}
-          把清晰，留在身边。 · v1.2
+          把清晰，留在身边。 · v1.3
         </span>
         <button className="text-button" onClick={onHelp}>
           <Smartphone size={16} /> 添加到主屏幕

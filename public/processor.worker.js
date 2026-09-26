@@ -340,7 +340,7 @@ self.onmessage = async ({ data }) => {
         w = ratio > 1 ? longest : longest * ratio;
         h = ratio > 1 ? longest / ratio : longest;
       }
-      const scale = Math.min(1, 2600 / Math.max(w, h));
+      const scale = Math.min(1, 3200 / Math.max(w, h));
       w = Math.max(2, Math.round(w * scale));
       h = Math.max(2, Math.round(h * scale));
       const a = own(
@@ -407,8 +407,16 @@ self.onmessage = async ({ data }) => {
               Math.max(2, Math.round(src.cols / 12)),
               Math.max(2, Math.round(src.rows / 12)),
             ),
+            0,
+            0,
+            cv.INTER_AREA,
           );
-          cv.GaussianBlur(small, small, new cv.Size(0, 0), 7);
+          // Estimate paper illumination without letting thin ink lines darken it.
+          const paperKernel = own(
+            cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(7, 7)),
+          );
+          cv.morphologyEx(small, small, cv.MORPH_CLOSE, paperKernel);
+          cv.GaussianBlur(small, small, new cv.Size(0, 0), 5);
           cv.resize(
             small,
             background,
@@ -436,28 +444,44 @@ self.onmessage = async ({ data }) => {
             }
             return 255;
           });
+          const whiteLuma =
+            white[0] * 0.299 + white[1] * 0.587 + white[2] * 0.114;
           for (let i = 0, p = 0; i < result.data.length; i += 4, p++) {
             const gain = Math.min(
-              1.65,
-              Math.max(0.92, 238 / Math.max(90, background.data[p])),
+              2.4,
+              Math.max(0.92, 245 / Math.max(90, background.data[p])),
             );
             for (let c = 0; c < 3; c++) {
-              const balanced =
-                src.data[i + c] * (filter === "auto" ? 255 / white[c] : 1);
-              const value =
-                balanced * (filter === "auto" ? gain : 1 + (gain - 1) * 0.5);
-              result.data[i + c] = Math.max(
-                0,
-                Math.min(
-                  255,
-                  (value - 128) * (filter === "auto" ? 1.14 : 1.2) + 128,
-                ),
+              // Correct color cast without multiplying a second brightness gain.
+              const balance = Math.max(
+                0.85,
+                Math.min(1.15, whiteLuma / white[c]),
               );
+              const value =
+                filter === "auto"
+                  ? 245 + (src.data[i + c] * balance * gain - 245) * 1.18
+                  : (src.data[i + c] * (1 + (gain - 1) * 0.5) - 128) * 1.12 +
+                    128;
+              result.data[i + c] = Math.max(0, Math.min(255, value));
             }
           }
           const softened = own(new cv.Mat());
-          cv.GaussianBlur(result, softened, new cv.Size(0, 0), 1);
-          cv.addWeighted(result, 1.35, softened, -0.35, 0, result);
+          cv.GaussianBlur(result, softened, new cv.Size(0, 0), 0.8);
+          // Bounded unsharp masking preserves thin strokes without broad halos.
+          for (let i = 0; i < result.data.length; i += 4)
+            for (let c = 0; c < 3; c++) {
+              const detail = Math.max(
+                -12,
+                Math.min(
+                  12,
+                  (result.data[i + c] - softened.data[i + c]) * 0.45,
+                ),
+              );
+              result.data[i + c] = Math.max(
+                0,
+                Math.min(255, result.data[i + c] + detail),
+              );
+            }
         }
       }
     } else throw new Error("未知的图像处理操作");

@@ -53,8 +53,8 @@ export function CameraScanner({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 2560 },
-            height: { ideal: 1920 },
+            width: { ideal: 3264 },
+            height: { ideal: 2448 },
           },
         });
         if (cancelled) {
@@ -103,7 +103,7 @@ export function CameraScanner({
         v.clientHeight,
         landscape,
       ).corners;
-      const blob = await canvasBlob(c, 0.95);
+      const blob = await canvasBlob(c, 0.98);
       await onCapture(blob, capturedGuide);
       setShooting(false);
     } catch {

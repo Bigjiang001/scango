@@ -31,14 +31,14 @@ export function Export({
 }) {
   const [name, setName] = useState(doc.name);
   const [quality, setQuality] = useState<"standard" | "high">(
-    doc.pdfInfo?.quality || "standard",
+    doc.pdfInfo?.quality || "high",
   );
   const [options, setOptions] = useState<ExportOptions>(
     doc.exportOptions || defaultExportOptions,
   );
   const [previewIndex, setPreviewIndex] = useState(0);
   const [pdf, setPdf] = useState<Blob | undefined>(
-    doc.pdfInfo?.layoutVersion === 2 ? doc.pdfInfo.blob : undefined,
+    doc.pdfInfo?.layoutVersion === 3 ? doc.pdfInfo.blob : undefined,
   );
   const previewPage = doc.pages[Math.min(previewIndex, doc.pages.length - 1)];
   let layout: ReturnType<typeof pageLayout> | undefined;
@@ -70,7 +70,7 @@ export function Export({
       await onSaved({
         ...updated,
         updatedAt: Date.now(),
-        pdfInfo: { blob, quality, generatedAt: Date.now(), layoutVersion: 2 },
+        pdfInfo: { blob, quality, generatedAt: Date.now(), layoutVersion: 3 },
       });
       setPdf(blob);
     } catch (e) {
@@ -302,7 +302,6 @@ export function Export({
                 <strong>标准</strong>
                 <p>日常阅读、微信发送 · 文件更小</p>
               </div>
-              <span>推荐</span>
             </label>
             <label
               className={`quality-choice ${quality === "high" ? "selected" : ""}`}
@@ -318,8 +317,9 @@ export function Export({
               />
               <div>
                 <strong>高清</strong>
-                <p>合同归档、打印 · 保留更多细节</p>
+                <p>小字文件、合同打印 · 保留更多细节</p>
               </div>
+              <span>推荐</span>
             </label>
           </fieldset>
           <p className="hint">

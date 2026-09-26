@@ -16,6 +16,7 @@ export async function decode(blob: Blob): Promise<HTMLImageElement> {
 export function canvasBlob(
   canvas: HTMLCanvasElement,
   quality = 0.9,
+  mimeType = "image/jpeg",
 ): Promise<Blob> {
   return new Promise((resolve, reject) =>
     canvas.toBlob(
@@ -23,7 +24,7 @@ export function canvasBlob(
         b
           ? resolve(b)
           : reject(new Error("无法编码图片，请释放设备空间后重试。")),
-      "image/jpeg",
+      mimeType,
       quality,
     ),
   );
@@ -50,7 +51,7 @@ export async function rotateImage(blob: Blob) {
   ctx.translate(c.width, 0);
   ctx.rotate(Math.PI / 2);
   ctx.drawImage(img, 0, 0);
-  return { blob: await canvasBlob(c), width: c.width, height: c.height };
+  return { blob: await canvasBlob(c, 0.98), width: c.width, height: c.height };
 }
 export function fileName(value: string) {
   return (

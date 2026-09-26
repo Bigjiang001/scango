@@ -11,12 +11,15 @@ export async function generatePdf(
   pdf.setTitle(doc.name);
   pdf.setCreator("茜茜扫描");
   for (let i = 0; i < doc.pages.length; i++) {
-    const source = await resize(
-      doc.pages[i].processedImage,
-      quality === "high" ? 2600 : 1600,
-      quality === "high" ? 0.9 : 0.76,
-    );
-    const img = await pdf.embedJpg(await source.blob.arrayBuffer());
+    const source =
+      quality === "high"
+        ? doc.pages[i].processedImage
+        : (await resize(doc.pages[i].processedImage, 2400, 0.92)).blob;
+    const bytes = await source.arrayBuffer();
+    const img =
+      source.type === "image/png"
+        ? await pdf.embedPng(bytes)
+        : await pdf.embedJpg(bytes);
     const layout = pageLayout(img.width, img.height, doc.exportOptions);
     const page = pdf.addPage(layout.size);
     page.drawImage(img, {
